@@ -20,6 +20,7 @@ class Grid:
     self._nr_empty = nr_empty
     self._grid = grid
     self._solved_grid = None
+    self._optimal_steps = None
 
   @property
   def dim(self):
@@ -28,6 +29,10 @@ class Grid:
   @property
   def nr_empty(self):
     return self._nr_empty
+
+  @property
+  def optimal_steps(self):
+    return self._optimal_steps
     
   def get_grid(self):
     return copy.copy(self._grid)
@@ -54,8 +59,10 @@ class Grid:
     row, col = empty_coords[index]
     for num in range(1, self.dim + 1):
       grid[row, col] = num
-      if self.is_row_valid(grid, row, num) and self.is_column_valid(grid, col, num)  and self.is_submat_valid(grid, (row//3)*3, (col//3)*3, num) and self.recursively_solve(grid, empty_coords, index + 1):
-        return True
+      if self.is_row_valid(grid, row, num) and self.is_column_valid(grid, col, num)  and self.is_submat_valid(grid, (row//3)*3, (col//3)*3, num):
+        self._optimal_steps += 1
+        if self.recursively_solve(grid, empty_coords, index + 1):
+          return True
       grid[row, col] = 0
         
     return False
@@ -63,7 +70,7 @@ class Grid:
   def get_solved_grid(self):
     if self._solved_grid is not None:
       return self._solved_grid
-        
+    self._optimal_steps = 0
     grid = self.get_grid()
     empty_coords = self.get_empty_coordinates(grid)
     self.recursively_solve(grid, empty_coords, 0)
@@ -82,8 +89,12 @@ def randomly_generate_grid_from_data(nr_empty, dim=9):
   grid = grid.reshape((9, 9))
   
   for _ in range(nr_empty):
-    index = random.randint(0, 81)
-    row, col = index // dim, index % dim
+    row, col = 0, 0
+    while True:
+      index = random.randint(0, 81)
+      row, col = index // dim, index % dim
+      if grid[row, col] != 0:
+        break
     grid[row, col] = 0
   
   return Grid(dim, nr_empty, grid)
@@ -91,3 +102,10 @@ def randomly_generate_grid_from_data(nr_empty, dim=9):
 
 def get_random_grid_generator():
   return randomly_generate_grid_from_data
+
+
+if __name__ == '__main__':
+  grid = randomly_generate_grid_from_data(15)
+  print(grid.get_grid())
+  print(grid.get_solved_grid())
+  print(grid.optimal_steps)
