@@ -290,19 +290,23 @@ class Model(nn.Module):
       current_dim = self.feature.get_output_dim()
     else:
       input_dims = [0 for i in range(args.nlm_breadth + 1)]
-      if args.is_path_task:
-        input_dims[1] = 2
-        input_dims[2] = 2
-      elif args.is_sort_task:
-        input_dims[2] = 6
+      if args.is_sudoku_task:
+        input_dims[1] = 9
+      # if args.is_path_task:
+      #   input_dims[1] = 2
+      #   input_dims[2] = 2
+      # elif args.is_sort_task:
+      #   input_dims[2] = 6
 
       self.features = LogicMachine.from_args(
           input_dims, args.nlm_attributes, args, prefix='nlm')
-      if args.is_path_task:
+      if args.is_sudoku_task:
         current_dim = self.features.output_dims[1]
-      elif args.task == 'sort':
-        current_dim = self.features.output_dims[2]
-
+      # if args.is_path_task:
+      #   current_dim = self.features.output_dims[1]
+      # elif args.task == 'sort':
+      #   current_dim = self.features.output_dims[2]
+    # print("Current", current_dim)
     self.pred = LogitsInference(current_dim, 1, [])
     self.loss = REINFORCELoss()
     self.pred_loss = nn.BCELoss()
@@ -310,29 +314,37 @@ class Model(nn.Module):
   def forward(self, feed_dict):
     feed_dict = GView(feed_dict)
     states = None
-    if args.is_path_task:
+    if args.is_sudoku_task:
       states = feed_dict.states.float()
-      relations = feed_dict.relations.float()
-    elif args.is_sort_task:
-      relations = feed_dict.states.float()
+    # if args.is_path_task:
+    #   states = feed_dict.states.float()
+    #   relations = feed_dict.relations.float()
+    # elif args.is_sort_task:
+    #   relations = feed_dict.states.float()
 
-    def get_features(states, relations, depth=None):
+    def get_features(states, depth=None):
       inp = [None for i in range(args.nlm_breadth + 1)]
       inp[1] = states
-      inp[2] = relations
+      # print(inp)
+      # inp[2] = relations
+      # print(inp)
       features = self.features(inp, depth=depth)
       return features
 
     if args.model == 'memnet':
       f = self.feature(relations, states)
     else:
-      f = get_features(states, relations)[self.feature_axis]
+      f = get_features(states)[self.feature_axis]
     if self.feature_axis == 2:  #sorting task
       f = meshgrid_exclude_self(f)
 
-    logits = self.pred(f).squeeze(dim=-1).view(relations.size(0), -1)
+    # print("F", f)
+
+    logits = self.pred(f).squeeze(dim=-1).view(states.size(0), -1)
+    # print("Logits", logits)
     # Set minimal value to avoid loss to be nan.
     policy = F.softmax(logits, dim=-1).clamp(min=1e-20)
+    # print("Policy", policy)
 
     if self.training:
       loss, monitors = self.loss(policy, feed_dict.actions,
@@ -352,8 +364,8 @@ def make_data(traj, gamma):
   discount_rewards.reverse()
 
   traj['states'] = as_tensor(np.array(traj['states']))
-  if args.is_path_task:
-    traj['relations'] = as_tensor(np.array(traj['relations']))
+  # if args.is_path_task:
+  #   traj['relations'] = as_tensor(np.array(traj['relations']))
   traj['actions'] = as_tensor(np.array(traj['actions']))
   traj['discount_rewards'] = as_tensor(np.array(discount_rewards)).float()
   return traj
@@ -380,28 +392,38 @@ def run_episode(env,
   if need_restart:
     env.restart()
 
-  if args.is_path_task:
-    optimal = env.unwrapped.dist
-    relation = env.unwrapped.graph.get_edges()
-    relation = np.stack([relation, relation.T], axis=-1)
-    st, ed = env.current_state
-    nodes_trajectory = [int(st)]
-    destination = int(ed)
+  if args.is_sudoku_task:
+    optimal = 729 #env.unwrapped.optimal_steps
+    cur = env.current_state
+    nodes_trajectory = [cur]
+    destination = env.unwrapped.solved
     policies = []
-  elif args.is_sort_task:
-    optimal = env.unwrapped.optimal
-    array = [str(i) for i in env.unwrapped.array]
+
+  # if args.is_path_task:
+  #   optimal = env.unwrapped.dist
+  #   relation = env.unwrapped.graph.get_edges()
+  #   relation = np.stack([relation, relation.T], axis=-1)
+  #   st, ed = env.current_state
+  #   nodes_trajectory = [int(st)]
+  #   destination = int(ed)
+  #   policies = []
+  # elif args.is_sort_task:
+  #   optimal = env.unwrapped.optimal
+  #   array = [str(i) for i in env.unwrapped.array]
 
   while not is_over:
-    if args.is_path_task:
-      st, ed = env.current_state
-      state = np.zeros((relation.shape[0], 2))
-      state[st, 0] = 1
-      state[ed, 1] = 1
-      feed_dict = dict(states=np.array([state]), relations=np.array([relation]))
-    elif args.is_sort_task:
+    if args.is_sudoku_task:
       state = env.current_state
       feed_dict = dict(states=np.array([state]))
+    # if args.is_path_task:
+    #   st, ed = env.current_state
+    #   state = np.zeros((relation.shape[0], 2))
+    #   state[st, 0] = 1
+    #   state[ed, 1] = 1
+    #   feed_dict = dict(states=np.array([state]), relations=np.array([relation]))
+    # elif args.is_sort_task:
+    #   state = env.current_state
+    #   feed_dict = dict(states=np.array([state]))
     feed_dict['entropy_beta'] = as_tensor(entropy_beta).float()
     feed_dict = as_tensor(feed_dict)
     if args.use_gpu:
@@ -417,18 +439,21 @@ def run_episode(env,
 
     # collect moves information
     if dump_play:
-      if args.is_path_task:
-        moves.append(int(action))
-        nodes_trajectory.append(int(env.current_state[0]))
-        logits = as_numpy(output_dict['logits'].data[0])
-        tops = np.argsort(p)[-10:][::-1]
-        tops = list(
-            map(lambda x: (int(x), float(p[x]), float(logits[x])), tops))
-        policies.append(tops)
-      if args.is_sort_task:
-        # Need to ensure that env.utils.MapActionProxy is the outermost class.
-        mapped_x, mapped_y = env.mapping[action]
-        moves.append([mapped_x, mapped_y])
+      if args.is_sudoku_task:
+        mapped_row, mapped_col, mapped_num = env.mapping[action]
+        moves.append([mapped_row, mapped_col, mapped_num])
+      # if args.is_path_task:
+      #   moves.append(int(action))
+      #   nodes_trajectory.append(int(env.current_state[0]))
+      #   logits = as_numpy(output_dict['logits'].data[0])
+      #   tops = np.argsort(p)[-10:][::-1]
+      #   tops = list(
+      #       map(lambda x: (int(x), float(p[x]), float(logits[x])), tops))
+      #   policies.append(tops)
+      # if args.is_sort_task:
+      #   # Need to ensure that env.utils.MapActionProxy is the outermost class.
+      #   mapped_x, mapped_y = env.mapping[action]
+      #   moves.append([mapped_x, mapped_y])
 
     # For now, assume reward=1 only when succeed, otherwise reward=0.
     # Manipulate the reward and get success information according to reward.
@@ -438,28 +463,31 @@ def run_episode(env,
 
     score += reward
     traj['states'].append(state)
-    if args.is_path_task:
-      traj['relations'].append(relation)
+    # if args.is_path_task:
+    #   traj['relations'].append(relation)
     traj['rewards'].append(reward)
     traj['actions'].append(action)
 
   # dump json file storing information of playing
   if dump_play and not (args.dump_fail_only and succ):
-    if args.is_path_task:
-      num = env.unwrapped.nr_nodes
-      graph = relation[:, :, 0].tolist()
-      coordinates = env.unwrapped.graph.get_coordinates().tolist()
-      json_str = json.dumps(
-          dict(
-              graph=graph,
-              coordinates=coordinates,
-              policies=policies,
-              destination=destination,
-              current=nodes_trajectory,
-              moves=moves))
-    if args.is_sort_task:
-      num = env.unwrapped.nr_numbers
-      json_str = json.dumps(dict(array=array, moves=moves))
+    if args.is_sudoku_task:
+      num = env.unwrapped.nr_empty
+      json_str = json.dumps(dict(grid=cur, moves=moves))
+    # if args.is_path_task:
+    #   num = env.unwrapped.nr_nodes
+    #   graph = relation[:, :, 0].tolist()
+    #   coordinates = env.unwrapped.graph.get_coordinates().tolist()
+    #   json_str = json.dumps(
+    #       dict(
+    #           graph=graph,
+    #           coordinates=coordinates,
+    #           policies=policies,
+    #           destination=destination,
+    #           current=nodes_trajectory,
+    #           moves=moves))
+    # if args.is_sort_task:
+    #   num = env.unwrapped.nr_numbers
+    #   json_str = json.dumps(dict(array=array, moves=moves))
     dump_file = os.path.join(args.current_dump_dir,
                              '{}_size{}.json'.format(play_name, num))
     with open(dump_file, 'w') as f:
@@ -489,13 +517,15 @@ class MyTrainer(MiningTrainerBase):
     pass
 
   def _get_player(self, number, mode):
-    if args.is_path_task:
-      test_len = args.gen_test_len
-      dist_range = (test_len, test_len) if mode == 'test' \
-          else (1, args.gen_max_len)
-      player = make_env(args.task, number, dist_range=dist_range)
-    else:
-      player = make_env(args.task, number)
+    if args.is_sudoku_task:
+      player = make_env(args.task, nr_empty=number)
+    # if args.is_path_task:
+    #   test_len = args.gen_test_len
+    #   dist_range = (test_len, test_len) if mode == 'test' \
+    #       else (1, args.gen_max_len)
+    #   player = make_env(args.task, number, dist_range=dist_range)
+    # else:
+    #   player = make_env(args.task, number)
     player.restart()
     return player
 

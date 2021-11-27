@@ -1,5 +1,6 @@
 """The environment class for grid tasks."""
 
+import copy
 import numpy as np
 
 import jacinle.random as random
@@ -46,11 +47,24 @@ class SudokuGridEnv(GridEnvBase):
                nr_empty,
                dim=9):
     super().__init__(nr_empty, dim)
-    self._empty_cell = 0
+    self._empty_cells = None
   
+  @property
+  def empty_cells(self):
+    return self._empty_cells
+  
+  @property
+  def optimal_steps(self):
+    return self._optimal_steps
+  
+  @property
+  def solved(self):
+    return self._solved
+
   def _restart(self):
     super()._restart()
     self._solved = self._grid.get_solved_grid()
+    self._empty_cells = self._grid.get_empty_coordinates(self._grid.get_grid())
     self._optimal_steps = self._grid.optimal_steps
     self._current = self._grid.get_grid()
     self._set_current_state(self._grid.get_grid())
@@ -64,21 +78,28 @@ class SudokuGridEnv(GridEnvBase):
     ind = random.randint(len(st))
     return st[ind], ed[ind], 1
 
-  def action(self, action):
-    if self._current == self._solved:
+  def _action(self, action):
+    if np.array_equal(self._current, self._solved):
       return 1, True
-    row, col, num = action
+    print("Action", action)
+    empty_cell_index, num = action
+    # print(self.nr_empty, self._empty_cells, self.current_state)
+    row, col = self._empty_cells[empty_cell_index]
+    print(row, col)
+    print(self.current_state)
+    # row, col, num = action
     grid = copy.copy(self._current)
-    if grid[row, col] == 0:
-      grid[row, col] = num
-      if self._grid.is_row_valid(grid, row, num) and self._grid.is_column_valid(grid, col, num) and self._grid.is_submat_valid(grid, (row//3)*3, (col//3)*3, num):
-        self._current = grid
+    # if grid[row, col] == 0:
+    grid[row, col] = num
+    if self._grid.is_row_valid(grid, row, num) and self._grid.is_column_valid(grid, col, num) and self._grid.is_submat_valid(grid, (row//3)*3, (col//3)*3, num):
+      self._current = grid
     self._set_current_state(self._current)
+    print(self.current_state)
     if np.array_equal(self._current, self._solved):
       return 1, True
     self._steps += 1
-    if self._steps >= self._optimal_steps:
-      return 0, True
+    # if self._steps >= self._optimal_steps:
+    #   return 0, True
     return 0, False
     
 

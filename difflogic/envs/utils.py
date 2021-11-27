@@ -19,7 +19,8 @@ from jaclearn.rl.env import ProxyRLEnvBase
 from jaclearn.rl.space import DiscreteActionSpace
 
 __all__ = ['MapActionProxy', 'get_action_mapping', 'get_action_mapping_graph',
-           'get_action_mapping_sorting', 'get_action_mapping_blocksworld']
+           'get_action_mapping_sorting', 'get_action_mapping_blocksworld',
+           'get_action_mapping_sudoku']
 
 
 class MapActionProxy(ProxyRLEnvBase):
@@ -54,6 +55,12 @@ def get_action_mapping(n, exclude_self=True):
 get_action_mapping_graph = get_action_mapping
 get_action_mapping_sorting = get_action_mapping
 
+def get_action_mapping_sudoku(n, dim=9, exclude_self=True):
+  """In sudoku view, this is a mapping from 1d-index to 2d-position with number"""
+  mapping = [
+    (i, j) for i in range(n) for j in range(1, dim+1)
+  ]
+  return mapping
 
 def get_action_mapping_blocksworld(nr_blocks, exclude_self=True):
   return get_action_mapping_graph(nr_blocks + 1, exclude_self)

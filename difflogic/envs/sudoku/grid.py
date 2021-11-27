@@ -8,7 +8,7 @@ import jacinle.random as random
 
 __all__ = ['Grid', 'randomly_generate_grid_from_data', 'get_random_grid_generator']
 
-dataset = pd.read_csv('sudoku.csv', dtype={0:'str', 1:'str'})
+dataset = pd.read_csv('difflogic/envs/sudoku/sudoku.csv', dtype={0:'str', 1:'str'})
 
 class Grid:
   """

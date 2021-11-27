@@ -404,8 +404,11 @@ def run_episode(env,
       output_dict = model(feed_dict)
 
     policy = output_dict['policy']
+    print("Policy", policy)
     p = as_numpy(policy.data[0])
+    print("P", p.argmax())
     action = p.argmax() if use_argmax else random.choice(len(p), p=p)
+    print(action)
     reward, is_over = env.action(action)
 
     # collect moves information
