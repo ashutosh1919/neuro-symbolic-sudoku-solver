@@ -58,7 +58,7 @@ get_action_mapping_sorting = get_action_mapping
 def get_action_mapping_sudoku(n, dim=9, exclude_self=True):
   """In sudoku view, this is a mapping from 1d-index to 2d-position with number"""
   mapping = [
-    (i, j) for i in range(n) for j in range(1, dim+1)
+    j for j in range(1, dim+1)
   ]
   return mapping
 

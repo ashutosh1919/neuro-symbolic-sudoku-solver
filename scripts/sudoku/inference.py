@@ -5,14 +5,18 @@ import copy
 import functools
 import json
 import os
+import time
 
 import numpy as np
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 import jacinle.random as random
 import jacinle.io as io
+
+from difflogic.envs.sudoku.grid import create_grid_from_matrix
 
 from difflogic.cli import format_args
 from difflogic.nn.baselines import MemoryNet
@@ -78,46 +82,15 @@ data_gen_group.add_argument(
   metavar='N',
   help='dimension of grid'
 )
-# data_gen_group.add_argument(
-#     '--gen-method',
-#     default='dnc',
-#     choices=['dnc', 'edge'],
-#     help='method use to generate random graph')
-# data_gen_group.add_argument(
-#     '--gen-graph-pmin',
-#     type=float,
-#     default=0.3,
-#     metavar='F',
-#     help='control parameter p reflecting the graph sparsity')
-# data_gen_group.add_argument(
-#     '--gen-graph-pmax',
-#     type=float,
-#     default=0.3,
-#     metavar='F',
-#     help='control parameter p reflecting the graph sparsity')
-# data_gen_group.add_argument(
-#     '--gen-max-len',
-#     type=int,
-#     default=5,
-#     metavar='N',
-#     help='maximum length of shortest path during training')
-# data_gen_group.add_argument(
-#     '--gen-test-len',
-#     type=int,
-#     default=4,
-#     metavar='N',
-#     help='length of shortest path during testing')
-# data_gen_group.add_argument(
-#     '--gen-directed', action='store_true', help='directed graph')
 
 MiningTrainerBase.make_trainer_parser(
     parser, {
         'epochs': 400,
         'epoch_size': 100,
         'test_epoch_size': 1000,
-        'test_number_begin': 10,
+        'test_number_begin': 3,
         'test_number_step': 10,
-        'test_number_end': 50,
+        'test_number_end': 3,
         'curriculum_start': 3,
         'curriculum_step': 1,
         'curriculum_graduate': 12,
@@ -206,6 +179,12 @@ io_group.add_argument(
     default=None,
     metavar='FILE',
     help='load parameters from checkpoint')
+io_group.add_argument(
+  '--num-compares',
+  default=500,
+  metavar='N',
+  help='number of grids to test time difference between model and backtracking'
+)
 
 schedule_group = parser.add_argument_group('Schedule')
 schedule_group.add_argument(
@@ -229,7 +208,7 @@ schedule_group.add_argument(
     metavar='N',
     help='the interval(number of epochs) to do test')
 schedule_group.add_argument(
-    '--test-only', action='store_true', help='test-only mode')
+    '--test-only', default=True, action='store_true', help='test-only mode')
 schedule_group.add_argument(
     '--test-not-graduated',
     action='store_true',
@@ -260,18 +239,6 @@ make_env = functools.partial(
   dim=args.gen_grid_dim
 )
 
-# args.is_path_task = args.task in ['path']
-# args.is_sort_task = args.task in ['sort']
-# if args.is_path_task:
-#   from difflogic.envs.graph import make as make_env
-#   make_env = functools.partial(
-#       make_env,
-#       pmin=args.gen_graph_pmin,
-#       pmax=args.gen_graph_pmax,
-#       directed=args.gen_directed,
-#       gen_method=args.gen_method)
-# elif args.is_sort_task:
-#   from difflogic.envs.algorithmic import make as make_env
 
 logger = get_logger(__file__)
 
@@ -282,7 +249,7 @@ class Model(nn.Module):
   def __init__(self):
     super().__init__()
 
-    self.feature_axis = 1  #if args.is_path_task else 2
+    self.feature_axis = 1
     if args.model == 'memnet':
       current_dim = 4 if args.is_path_task else 6
       self.feature = MemoryNet.from_args(
@@ -292,21 +259,11 @@ class Model(nn.Module):
       input_dims = [0 for i in range(args.nlm_breadth + 1)]
       if args.is_sudoku_task:
         input_dims[1] = 9
-      # if args.is_path_task:
-      #   input_dims[1] = 2
-      #   input_dims[2] = 2
-      # elif args.is_sort_task:
-      #   input_dims[2] = 6
-
+    
       self.features = LogicMachine.from_args(
           input_dims, args.nlm_attributes, args, prefix='nlm')
       if args.is_sudoku_task:
         current_dim = self.features.output_dims[1]
-      # if args.is_path_task:
-      #   current_dim = self.features.output_dims[1]
-      # elif args.task == 'sort':
-      #   current_dim = self.features.output_dims[2]
-    # print("Current", current_dim)
     self.pred = LogitsInference(current_dim, 1, [])
     self.loss = REINFORCELoss()
     self.pred_loss = nn.BCELoss()
@@ -316,43 +273,19 @@ class Model(nn.Module):
     states = None
     if args.is_sudoku_task:
       states = feed_dict.states.float()
-    # if args.is_path_task:
-    #   states = feed_dict.states.float()
-    #   relations = feed_dict.relations.float()
-    # elif args.is_sort_task:
-    #   relations = feed_dict.states.float()
 
     def get_features(states, depth=None):
       inp = [None for i in range(args.nlm_breadth + 1)]
       inp[1] = states
-      # print(inp)
-      # inp[2] = relations
-      # print(inp)
       features = self.features(inp, depth=depth)
       return features
 
-    if args.model == 'memnet':
-      f = self.feature(relations, states)
-    else:
-      f = get_features(states)[self.feature_axis]
-    if self.feature_axis == 2:  #sorting task
-      f = meshgrid_exclude_self(f)
-
-    # print("F", f)
+    f = get_features(states)[self.feature_axis]
 
     logits = self.pred(f).squeeze(dim=-1).view(states.size(0), -1)
-    # print("Logits", logits)
-    # Set minimal value to avoid loss to be nan.
     policy = F.softmax(logits, dim=-1).clamp(min=1e-20)
-    # print("Policy", policy)
 
-    if self.training:
-      loss, monitors = self.loss(policy, feed_dict.actions,
-                                 feed_dict.discount_rewards,
-                                 feed_dict.entropy_beta)
-      return loss, monitors, dict()
-    else:
-      return dict(policy=policy, logits=logits)
+    return dict(policy=policy, logits=logits)
 
 
 def make_data(traj, gamma):
@@ -364,8 +297,6 @@ def make_data(traj, gamma):
   discount_rewards.reverse()
 
   traj['states'] = as_tensor(np.array(traj['states']))
-  # if args.is_path_task:
-  #   traj['relations'] = as_tensor(np.array(traj['relations']))
   traj['actions'] = as_tensor(np.array(traj['actions']))
   traj['discount_rewards'] = as_tensor(np.array(discount_rewards)).float()
   return traj
@@ -385,45 +316,22 @@ def run_episode(env,
   traj = collections.defaultdict(list)
   score = 0
   moves = []
-  # If dump_play=True, store the states and actions in a json file
-  # for visualization.
   dump_play = args.dump_play and dump
 
   if need_restart:
     env.restart()
 
   if args.is_sudoku_task:
-    optimal = 400 #env.unwrapped.optimal_steps
+    optimal = 400
     cur = env.current_state
     nodes_trajectory = [cur]
     destination = env.unwrapped.solved
     policies = []
 
-  # if args.is_path_task:
-  #   optimal = env.unwrapped.dist
-  #   relation = env.unwrapped.graph.get_edges()
-  #   relation = np.stack([relation, relation.T], axis=-1)
-  #   st, ed = env.current_state
-  #   nodes_trajectory = [int(st)]
-  #   destination = int(ed)
-  #   policies = []
-  # elif args.is_sort_task:
-  #   optimal = env.unwrapped.optimal
-  #   array = [str(i) for i in env.unwrapped.array]
-
   while not is_over:
     if args.is_sudoku_task:
       state = env.current_state
       feed_dict = dict(states=np.array([state]))
-    # if args.is_path_task:
-    #   st, ed = env.current_state
-    #   state = np.zeros((relation.shape[0], 2))
-    #   state[st, 0] = 1
-    #   state[ed, 1] = 1
-    #   feed_dict = dict(states=np.array([state]), relations=np.array([relation]))
-    # elif args.is_sort_task:
-    #   state = env.current_state
-    #   feed_dict = dict(states=np.array([state]))
     feed_dict['entropy_beta'] = as_tensor(entropy_beta).float()
     feed_dict = as_tensor(feed_dict)
     if args.use_gpu:
@@ -442,18 +350,6 @@ def run_episode(env,
       if args.is_sudoku_task:
         mapped_row, mapped_col, mapped_num = env.mapping[action]
         moves.append([mapped_row, mapped_col, mapped_num])
-      # if args.is_path_task:
-      #   moves.append(int(action))
-      #   nodes_trajectory.append(int(env.current_state[0]))
-      #   logits = as_numpy(output_dict['logits'].data[0])
-      #   tops = np.argsort(p)[-10:][::-1]
-      #   tops = list(
-      #       map(lambda x: (int(x), float(p[x]), float(logits[x])), tops))
-      #   policies.append(tops)
-      # if args.is_sort_task:
-      #   # Need to ensure that env.utils.MapActionProxy is the outermost class.
-      #   mapped_x, mapped_y = env.mapping[action]
-      #   moves.append([mapped_x, mapped_y])
 
     # For now, assume reward=1 only when succeed, otherwise reward=0.
     # Manipulate the reward and get success information according to reward.
@@ -462,9 +358,9 @@ def run_episode(env,
     succ = 1 if is_over and reward > 0.99 else 0
 
     score += reward
+    if succ == 1:
+      traj["solved"] = env.current_state
     traj['states'].append(state)
-    # if args.is_path_task:
-    #   traj['relations'].append(relation)
     traj['rewards'].append(reward)
     traj['actions'].append(action)
 
@@ -473,21 +369,6 @@ def run_episode(env,
     if args.is_sudoku_task:
       num = env.unwrapped.nr_empty
       json_str = json.dumps(dict(grid=cur, moves=moves))
-    # if args.is_path_task:
-    #   num = env.unwrapped.nr_nodes
-    #   graph = relation[:, :, 0].tolist()
-    #   coordinates = env.unwrapped.graph.get_coordinates().tolist()
-    #   json_str = json.dumps(
-    #       dict(
-    #           graph=graph,
-    #           coordinates=coordinates,
-    #           policies=policies,
-    #           destination=destination,
-    #           current=nodes_trajectory,
-    #           moves=moves))
-    # if args.is_sort_task:
-    #   num = env.unwrapped.nr_numbers
-    #   json_str = json.dumps(dict(array=array, moves=moves))
     dump_file = os.path.join(args.current_dump_dir,
                              '{}_size{}.json'.format(play_name, num))
     with open(dump_file, 'w') as f:
@@ -519,13 +400,6 @@ class MyTrainer(MiningTrainerBase):
   def _get_player(self, number, mode):
     if args.is_sudoku_task:
       player = make_env(args.task, nr_empty=number)
-    # if args.is_path_task:
-    #   test_len = args.gen_test_len
-    #   dist_range = (test_len, test_len) if mode == 'test' \
-    #       else (1, args.gen_max_len)
-    #   player = make_env(args.task, number, dist_range=dist_range)
-    # else:
-    #   player = make_env(args.task, number)
     player.restart()
     return player
 
@@ -534,7 +408,7 @@ class MyTrainer(MiningTrainerBase):
     params = dict(
         eval_only=True,
         number=number,
-        play_name='{}_epoch{}_episode{}'.format(mode, self.current_epoch,
+        play_name='{}_epoch{}_episode{}'.format(mode, 0,
                                                 index))
     backup = None
     if mode == 'train':
@@ -543,27 +417,13 @@ class MyTrainer(MiningTrainerBase):
       meters.update(lr=self.lr, entropy_beta=self.entropy_beta)
     elif mode == 'test':
       params['dump'] = True
-      params['use_argmax'] = True
+      # params['use_argmax'] = True
     else:
       backup = copy.deepcopy(player)
       params['use_argmax'] = self.is_candidate
     succ, score, traj, length, optimal = \
         run_episode(player, self.model, **params)
-    meters.update(
-        number=number, succ=succ, score=score, length=length, optimal=optimal)
-
-    if mode == 'train':
-      feed_dict = make_data(traj, args.gamma)
-      feed_dict['entropy_beta'] = as_tensor(self.entropy_beta).float()
-
-      if args.use_gpu:
-        feed_dict = as_cuda(feed_dict)
-      return feed_dict
-    else:
-      message = '> {} iter={iter}, number={number}, succ={succ}, \
-score={score:.4f}, length={length}, optimal={optimal}'.format(
-          mode, iter=index, **meters.val)
-      return message, dict(succ=succ, number=number, backup=backup)
+    return succ, score, traj, length, optimal
 
   def _extract_info(self, extra):
     return extra['succ'], extra['number'], extra['backup']
@@ -605,20 +465,22 @@ score={score:.4f}, length={length}, optimal={optimal}'.format(
     self.entropy_beta = args.entropy_beta
     return super().train()
 
+  def test(self):
+    self.lr = args.lr
+    self.entropy_beta = args.entropy_beta
+    return super().test()
 
-def main(run_id):
-  if args.dump_dir is not None:
-    if args.runs > 1:
-      args.current_dump_dir = os.path.join(args.dump_dir,
-                                           'run_{}'.format(run_id))
-      io.mkdir(args.current_dump_dir)
-    else:
-      args.current_dump_dir = args.dump_dir
-    args.checkpoints_dir = os.path.join(args.current_dump_dir, 'checkpoints')
-    io.mkdir(args.checkpoints_dir)
-    args.summary_file = os.path.join(args.current_dump_dir, 'summary.json')
 
-  logger.info(format_args(args))
+def solve_sudoku(trainer, nr_empty):
+  player = trainer._get_player(nr_empty, 'test')
+  start = time.time()
+  result = trainer._get_result_given_player(0, dict(), nr_empty, player, 'test')
+  nlm_solve_time = time.time() - start
+  return result, nlm_solve_time
+
+
+if __name__ == '__main__':
+  # Comparing the time complexity of NLM model with backtracking algorithm
 
   model = Model()
   if args.use_gpu:
@@ -632,42 +494,24 @@ def main(run_id):
   if args.load_checkpoint is not None:
     trainer.load_checkpoint(args.load_checkpoint)
 
-  if args.test_only:
-    trainer.current_epoch = 0
-    return None, trainer.test()
-
-  graduated = trainer.train()
-  trainer.save_checkpoint('last')
-  test_meters = trainer.test() if graduated or args.test_not_graduated else None
-  return graduated, test_meters
-
-
-if __name__ == '__main__':
-  stats = []
-  nr_graduated = 0
-
-  for i in range(args.runs):
-    graduated, test_meters = main(i)
-    logger.info('run {}'.format(i + 1))
-
-    if test_meters is not None:
-      for j, meters in enumerate(test_meters):
-        if len(stats) <= j:
-          stats.append(GroupMeters())
-        stats[j].update(
-            number=meters.avg['number'], test_succ=meters.avg['succ'])
-
-      for meters in stats:
-        logger.info('number {}, test_succ {}'.format(meters.avg['number'],
-                                                     meters.avg['test_succ']))
-
-    if not args.test_only:
-      nr_graduated += int(graduated)
-      logger.info('graduate_ratio {}'.format(nr_graduated / (i + 1)))
-      if graduated:
-        for j, meters in enumerate(test_meters):
-          stats[j].update(grad_test_succ=meters.avg['succ'])
-      if nr_graduated > 0:
-        for meters in stats:
-          logger.info('number {}, grad_test_succ {}'.format(
-              meters.avg['number'], meters.avg['grad_test_succ']))
+  nr_empty = 3
+  num_compares = int(args.num_compares)
+  nlm_time = []
+  backtrack_time = []
+  for i in range(num_compares):
+    result, time_nlm = solve_sudoku(trainer, nr_empty)
+    traj = result[2]
+    initial = traj["states"][0]
+    grid = create_grid_from_matrix(initial, nr_empty)
+    time_backtrack = grid.backtrack_time
+    nlm_time.append(time_nlm)
+    backtrack_time.append(time_backtrack)
+    print('Grid Count: {}, Backtrack time: {}, NLM time:{}'.format(i+1, time_backtrack, time_nlm))
+  plt.plot(list(range(1, num_compares+1)), backtrack_time)
+  plt.plot(list(range(1, num_compares+1)), nlm_time)
+  plt.xlabel("Number Of Grids")
+  plt.ylabel("Run Time")
+  plt.title("Run Time: NLM vs Backtracking (Number of empty cells: 3)")
+  legends = ['Backtrack','NLM']
+  plt.legend(legends)
+  plt.savefig('images/compare_{}.png'.format(num_compares))

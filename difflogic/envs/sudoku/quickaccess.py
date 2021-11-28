@@ -12,9 +12,9 @@ __all__ = ['get_grid_env', 'make']
 def get_grid_env(nr_empty, dim=9):
   env_cls = SudokuGridEnv
   p = env_cls(nr_empty, dim)
-  p = LimitLengthProxy(p, 729)
+  p = LimitLengthProxy(p, 400)
   mapping = get_action_mapping_sudoku(nr_empty, dim, exclude_self=False)
-  print(mapping)
+  # print(mapping)
   p = MapActionProxy(p, mapping)
   return p
 

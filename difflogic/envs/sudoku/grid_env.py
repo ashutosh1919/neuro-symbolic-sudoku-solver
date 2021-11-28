@@ -81,21 +81,25 @@ class SudokuGridEnv(GridEnvBase):
   def _action(self, action):
     if np.array_equal(self._current, self._solved):
       return 1, True
-    print("Action", action)
-    empty_cell_index, num = action
+    # print("Action", action)
+    # empty_cell_index, num = action
+    num = action
+    empty_cell_index = random.choice(len(self._empty_cells))
     # print(self.nr_empty, self._empty_cells, self.current_state)
     row, col = self._empty_cells[empty_cell_index]
-    print(row, col)
-    print(self.current_state)
+    # print(row, col)
+    # print(self.current_state)
     # row, col, num = action
     grid = copy.copy(self._current)
     # if grid[row, col] == 0:
     grid[row, col] = num
     if self._grid.is_row_valid(grid, row, num) and self._grid.is_column_valid(grid, col, num) and self._grid.is_submat_valid(grid, (row//3)*3, (col//3)*3, num):
-      self._current = grid
-    self._set_current_state(self._current)
-    print(self.current_state)
-    if np.array_equal(self._current, self._solved):
+      self._current = copy.copy(grid)
+    self._set_current_state(copy.copy(self._current))
+    # print(self.current_state)
+    if np.array_equal(self._current, self.solved):
+      # print('Current', self._current)
+      # print('Solved', self.solved)
       return 1, True
     self._steps += 1
     # if self._steps >= self._optimal_steps:

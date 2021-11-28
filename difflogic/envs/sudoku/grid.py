@@ -22,6 +22,7 @@ class Grid:
     self._grid = grid
     self._solved_grid = None
     self._optimal_steps = None
+    self._backtrack_time = None
 
   @property
   def dim(self):
@@ -34,6 +35,12 @@ class Grid:
   @property
   def optimal_steps(self):
     return self._optimal_steps
+
+  @property
+  def backtrack_time(self):
+    if self._backtrack_time is None:
+      _ = self.get_solved_grid()
+    return self._backtrack_time
     
   def get_grid(self):
     return copy.copy(self._grid)
@@ -67,7 +74,6 @@ class Grid:
       grid[row, col] = 0
         
     return False
-    
   
   def get_solved_grid(self):
     if self._solved_grid is not None:
@@ -76,11 +82,11 @@ class Grid:
     grid = self.get_grid()
     empty_coords = self.get_empty_coordinates(grid)
      # get backtracking time
-    self._start_time_backtrack = time.time()
+    start = time.time()
     self.recursively_solve(grid, empty_coords, 0)
-    self._final_time_backtrack = time.time() - self._start_time_backtrack
+    self._backtrack_time = time.time() - start
     self._solved_grid = copy.copy(grid)
-    return self._solved_grid, self._final_time_backtrack
+    return self._solved_grid
 
 
 def randomly_generate_grid_from_data(nr_empty, dim=9):
@@ -109,8 +115,12 @@ def get_random_grid_generator():
   return randomly_generate_grid_from_data
 
 
+def create_grid_from_matrix(mat, nr_empty, dim=9):
+  return Grid(dim, nr_empty, mat)
+
+
 if __name__ == '__main__':
-  grid = randomly_generate_grid_from_data(15)
+  grid = randomly_generate_grid_from_data(3)
   print(grid.get_grid())
   print(grid.get_solved_grid())
   print(grid.optimal_steps)
