@@ -1,5 +1,6 @@
 """Implement random grid generators and Grid class."""
 
+import time
 import copy
 import numpy as np
 import pandas as pd
@@ -67,15 +68,19 @@ class Grid:
         
     return False
     
+  
   def get_solved_grid(self):
     if self._solved_grid is not None:
       return self._solved_grid
     self._optimal_steps = 0
     grid = self.get_grid()
     empty_coords = self.get_empty_coordinates(grid)
+     # get backtracking time
+    self._start_time_backtrack = time.time()
     self.recursively_solve(grid, empty_coords, 0)
+    self._final_time_backtrack = time.time() - self._start_time_backtrack
     self._solved_grid = copy.copy(grid)
-    return self._solved_grid
+    return self._solved_grid, self._final_time_backtrack
 
 
 def randomly_generate_grid_from_data(nr_empty, dim=9):
