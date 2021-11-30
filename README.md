@@ -75,6 +75,13 @@ $ jac-run scripts/sudoku/learn_policy.py --task sudoku --dump-dir models
 $ jac-run scripts/sudoku/inference.py --task sudoku --load-checkpoint models/checkpoints/checkpoint_10.pth
 ```
 
+Below is the sample output that you should get after running `inference.py` where the program will generate a problem
+Sudoku grid and NLM model will solve it.  
+
+<div align="center">
+  <img src="_assets/sample_output.png" width="60%">
+</div>  
+
 ## Contributors ✨
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):

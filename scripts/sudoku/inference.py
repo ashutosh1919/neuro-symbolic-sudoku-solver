@@ -495,23 +495,36 @@ if __name__ == '__main__':
     trainer.load_checkpoint(args.load_checkpoint)
 
   nr_empty = 3
-  num_compares = int(args.num_compares)
-  nlm_time = []
-  backtrack_time = []
-  for i in range(num_compares):
-    result, time_nlm = solve_sudoku(trainer, nr_empty)
-    traj = result[2]
-    initial = traj["states"][0]
-    grid = create_grid_from_matrix(initial, nr_empty)
-    time_backtrack = grid.backtrack_time
-    nlm_time.append(time_nlm)
-    backtrack_time.append(time_backtrack)
-    print('Grid Count: {}, Backtrack time: {}, NLM time:{}'.format(i+1, time_backtrack, time_nlm))
-  plt.plot(list(range(1, num_compares+1)), backtrack_time)
-  plt.plot(list(range(1, num_compares+1)), nlm_time)
-  plt.xlabel("Number Of Grids")
-  plt.ylabel("Run Time")
-  plt.title("Run Time: NLM vs Backtracking (Number of empty cells: 3)")
-  legends = ['Backtrack','NLM']
-  plt.legend(legends)
-  plt.savefig('images/compare_{}.png'.format(num_compares))
+
+  result, time_nlm = solve_sudoku(trainer, nr_empty)
+  traj = result[2]
+  initial = traj["states"][0]
+  print("Problem Grid:")
+  print(np.where(initial == 0, '_', initial))
+  print()
+  print('Solved Grid using NLM:')
+  print(traj['solved'])
+
+
+  # Uncomment below code to create plot for comparing NLM model with traditional backtracking algorithm.
+  
+  # num_compares = int(args.num_compares)
+  # nlm_time = []
+  # backtrack_time = []
+  # for i in range(num_compares):
+  #   result, time_nlm = solve_sudoku(trainer, nr_empty)
+  #   traj = result[2]
+  #   initial = traj["states"][0]
+  #   grid = create_grid_from_matrix(initial, nr_empty)
+  #   time_backtrack = grid.backtrack_time
+  #   nlm_time.append(time_nlm)
+  #   backtrack_time.append(time_backtrack)
+  #   print('Grid Count: {}, Backtrack time: {}, NLM time:{}'.format(i+1, time_backtrack, time_nlm))
+  # plt.plot(list(range(1, num_compares+1)), backtrack_time)
+  # plt.plot(list(range(1, num_compares+1)), nlm_time)
+  # plt.xlabel("Number Of Grids")
+  # plt.ylabel("Run Time")
+  # plt.title("Run Time: NLM vs Backtracking (Number of empty cells: 3)")
+  # legends = ['Backtrack','NLM']
+  # plt.legend(legends)
+  # plt.savefig('images/compare_{}.png'.format(num_compares))
