@@ -65,7 +65,7 @@ The code in `scripts/sudoku/learn_policy.py` trains the model whereas `scripts/s
 
 We also provide pre-trained models for 3 decision-making tasks in [models](models) directory,
 
-Taking the [Blocks World](scripts/blocksworld) task as an example.
+Taking the [Sudoku](scripts/sudoku) task as an example.
 
 ``` shell
 # To train the model:
@@ -74,8 +74,6 @@ $ jac-run scripts/sudoku/learn_policy.py --task sudoku --dump-dir models
 # To infer the model:
 $ jac-run scripts/sudoku/inference.py --task sudoku --load-checkpoint models/checkpoints/checkpoint_10.pth
 ```
-
-Please refer to the [graph](scripts/graph) directory for training/inference details of other tasks.
 
 ## Contributors ✨
 
