@@ -494,7 +494,7 @@ if __name__ == '__main__':
   if args.load_checkpoint is not None:
     trainer.load_checkpoint(args.load_checkpoint)
 
-  nr_empty = 3
+  nr_empty = 5
 
   result, time_nlm = solve_sudoku(trainer, nr_empty)
   traj = result[2]
