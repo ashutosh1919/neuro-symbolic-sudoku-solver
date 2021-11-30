@@ -8,6 +8,7 @@ __pycache__/
 
 difflogic/envs/sudoku/sudoku.csv
 sudoku_dump/*
+models/*
 
 # Distribution / packaging
 .Python

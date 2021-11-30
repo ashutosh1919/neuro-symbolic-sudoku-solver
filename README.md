@@ -63,16 +63,19 @@ The code in `difflogic/envs/sudoku` contains information about the environment f
 
 The code in `scripts/sudoku/learn_policy.py` trains the model whereas `scripts/sudoku/inference.py` generates prediction from trained model.
 
-We also provide pre-trained models for 3 decision-making tasks in [models](models) directory,
+We also provide code to download dataset and pre-trained models.
 
 Taking the [Sudoku](scripts/sudoku) task as an example.
 
 ``` shell
+# To download dataset and pre-trained models
+$ jac-run scripts/sudoku/download_data_mode.py
+
 # To train the model:
 $ jac-run scripts/sudoku/learn_policy.py --task sudoku --dump-dir models
 
 # To infer the model:
-$ jac-run scripts/sudoku/inference.py --task sudoku --load-checkpoint models/checkpoints/checkpoint_10.pth
+$ jac-run scripts/sudoku/inference.py --task sudoku --load-checkpoint models/sudoku.pth
 ```
 
 Below is the sample output that you should get after running `inference.py` where the program will generate a problem
