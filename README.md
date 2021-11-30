@@ -82,6 +82,12 @@ Sudoku grid and NLM model will solve it.
   <img src="_assets/sample_output.png" width="60%">
 </div>  
 
+We have trained model with tuning with different parameters and we got below results.  
+
+<div align="center">
+  <img src="_assets/evaluation.png" width="60%">
+</div>  
+
 ## Contributors ✨
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
