@@ -1,5 +1,5 @@
 # Neuro-Symbolic Sudoku Solver
-PyTorch implementation for the Neuro-Symbolic Sudoku Solver leveraging the power of Neural Logic Machines (NLM). **Please note that this is not an officially supported Google product.**  This project is a direct application of work done as part of original [NLM project](https://github.com/google/neural-logic-machines). We have applied NLM concept to solve more complex (Solving Sudoku) problems.
+PyTorch implementation for the Neuro-Symbolic Sudoku Solver leveraging the power of Neural Logic Machines (NLM). **Please note that this is not an officially supported Google product.**  This project is a direct application of work done as part of original [NLM project](https://github.com/google/neural-logic-machines). We have applied NLM concept to solve more complex (Solving Sudoku) problems. We have also described the internal workings in [Medium Blog](https://medium.com/@ashutosh1919/creating-neuro-symbolic-sudoku-solver-cc94c431d10b).
 
 <div align="center">
   <img src="_assets/framework.png" width="100%">
