@@ -181,7 +181,7 @@ io_group.add_argument(
     help='load parameters from checkpoint')
 io_group.add_argument(
   '--num-compares',
-  default=500,
+  default=50,
   metavar='N',
   help='number of grids to test time difference between model and backtracking'
 )
@@ -520,11 +520,18 @@ if __name__ == '__main__':
   #   nlm_time.append(time_nlm)
   #   backtrack_time.append(time_backtrack)
   #   print('Grid Count: {}, Backtrack time: {}, NLM time:{}'.format(i+1, time_backtrack, time_nlm))
-  # plt.plot(list(range(1, num_compares+1)), backtrack_time)
-  # plt.plot(list(range(1, num_compares+1)), nlm_time)
-  # plt.xlabel("Number Of Grids")
-  # plt.ylabel("Run Time")
-  # plt.title("Run Time: NLM vs Backtracking (Number of empty cells: 3)")
-  # legends = ['Backtrack','NLM']
-  # plt.legend(legends)
-  # plt.savefig('images/compare_{}.png'.format(num_compares))
+  
+  # fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+  # fig.suptitle("Run Time: NLM vs Backtracking (Number of empty cells: 5)")
+
+  # ax1.set_title('BackTracking')
+  # ax1.set_xlabel("Number Of Grids")
+  # ax1.set_ylabel("Run Time (in sec)")
+  # ax1.plot(list(range(1, num_compares+1)), backtrack_time)
+
+  # ax2.set_title('NLM')
+  # ax2.set_xlabel("Number Of Grids")
+  # ax2.set_ylabel("Run Time (in sec)")
+  # ax2.plot(list(range(1, num_compares+1)), nlm_time)
+
+  # fig.savefig('images/compare_{}.png'.format(num_compares))
